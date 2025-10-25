@@ -1,0 +1,26 @@
+# Interactive Demo Commands
+# Copy and paste these commands one by one in the interactive mode
+
+# Load the hello program
+load examples/simple_hello.bin 0x0200
+
+# Show CPU status
+status
+
+# Step through a few instructions
+step
+step
+step
+
+# Show status again
+status
+
+# Run the rest of the program
+run 100
+
+# Show final status
+status
+
+# Exit
+quit
+
