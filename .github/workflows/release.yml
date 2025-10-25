@@ -6,30 +6,14 @@ on:
       - 'v*.*.*'
 
 jobs:
-  build-and-release:
+  create-release:
     runs-on: ubuntu-latest
-
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential cmake ninja-build zip
-
-      - name: Configure
-        run: cmake -S . -B build -G Ninja
-
-      - name: Build
-        run: cmake --build build --parallel
-
-      - name: Package
-        run: |
-          mkdir -p release
-          cp build/build/tests.exe release/tests.exe || true
-          zip -j release/software_cpu_${{ github.ref_name }}.zip release/*
-
-      - name: Create Release
+      - name: Create GitHub Release
         id: create_release
         uses: actions/create-release@v1
         with:
@@ -40,10 +24,45 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload Release Asset
+  build:
+    needs: create-release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake ninja-build zip
+
+      - name: Setup (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: powershell
+        run: |
+          choco install -y ninja cmake zip --no-progress || true
+
+      - name: Configure
+        run: cmake -S . -B build -G Ninja
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Package
+        run: |
+          mkdir -p release
+          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then cp build/build/tests.exe release/tests_${{ matrix.os }}.exe || true; fi
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then cp build/build/tests.exe release/tests_${{ matrix.os }}.exe || true; fi
+          zip -j release/software_cpu_${{ github.ref_name }}_${{ matrix.os }}.zip release/* || true
+
+      - name: Upload release asset
         uses: actions/upload-release-asset@v1
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: release/software_cpu_${{ github.ref_name }}.zip
-          asset_name: software_cpu_${{ github.ref_name }}.zip
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: release/software_cpu_${{ github.ref_name }}_${{ matrix.os }}.zip
+          asset_name: software_cpu_${{ github.ref_name }}_${{ matrix.os }}.zip
           asset_content_type: application/zip
